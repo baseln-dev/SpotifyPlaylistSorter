@@ -3,6 +3,8 @@
 
 	const clientId = '0e612a7fd5544773bb7f69ba48861721';
 	
+	const ghRepo = 'SpotifyPlaylistSorter';
+
 	// Fixed redirect URIs - add both to your Spotify app settings
 	const getRedirectUri = () => {
 		if (typeof window === 'undefined') return 'http://127.0.0.1:5173/callback';
@@ -14,7 +16,7 @@
 		
 		// GitHub Pages production - update 'yourusername' with your GitHub username
 		if (window.location.hostname.endsWith('.github.io')) {
-			return `https://${window.location.hostname}/PlaylistSorter/callback`;
+			return `https://${window.location.hostname}/${ghRepo}/callback`;
 		}
 		
 		// Fallback (shouldn't be used)

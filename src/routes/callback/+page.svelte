@@ -4,6 +4,7 @@
   import { base } from '$app/paths';
 
   const clientId = '0e612a7fd5544773bb7f69ba48861721';
+  const ghRepo = 'SpotifyPlaylistSorter';
   
   // Fixed redirect URIs - must match login page
   const getRedirectUri = () => {
@@ -16,7 +17,7 @@
     
     // GitHub Pages production
     if (window.location.hostname.endsWith('.github.io')) {
-      return `https://${window.location.hostname}/PlaylistSorter/callback`;
+      return `https://${window.location.hostname}/${ghRepo}/callback`;
     }
     
     // Fallback
