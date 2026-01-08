@@ -262,17 +262,17 @@
         processingProgress.stage = 'Fetching tracks...';
         if (playlist.isLiked) {
           localStorage.setItem('selected_playlist_id', 'liked-songs');
-          let url = toApi('me/tracks?limit=50&fields=items(track(uri,artists(id))),next,total');
+          let url: string | null = toApi('me/tracks?limit=50&fields=items(track(uri,artists(id))),next,total');
           let trackCount = 0;
           let totalTarget = playlist.tracks || 0;
           
           while (url) {
-            const likedTracksRes = await fetch(url, {
+            const likedTracksRes: Response = await fetch(url, {
               headers: {
                 Authorization: `Bearer ${token}`
               }
             });
-            const tracksData = await likedTracksRes.json();
+            const tracksData: any = await likedTracksRes.json();
             if (!totalTarget && typeof tracksData.total === 'number') {
               totalTarget = tracksData.total;
             }
@@ -280,27 +280,30 @@
             if (tracksData.items) {
               allTracks.push(...tracksData.items);
               trackCount += tracksData.items.length;
+              const total = totalTarget || trackCount;
               processingProgress = { 
-                current: trackCount, 
-                total: totalTarget || trackCount, 
-                stage: `Fetching tracks (${trackCount}/${totalTarget || trackCount})...` 
+                current: Math.min(trackCount, total), 
+                total, 
+                stage: `Fetching tracks (${Math.min(trackCount, total)}/${total})...` 
               };
             }
-            url = tracksData.next ? toApi(tracksData.next) : '';
+            url = tracksData.next ? toApi(tracksData.next) : null;
           }
+          const finalTotal = totalTarget || trackCount;
+          processingProgress = { current: Math.min(trackCount, finalTotal), total: finalTotal, stage: 'Tracks fetched.' };
         } else {
           localStorage.setItem('selected_playlist_id', playlist.id);
-          let url = toApi(`playlists/${playlist.id}/tracks?limit=50&fields=items(track(uri,artists(id))),next,total`);
+          let url: string | null = toApi(`playlists/${playlist.id}/tracks?limit=50&fields=items(track(uri,artists(id))),next,total`);
           let trackCount = 0;
           let totalTarget = playlist.tracks || 0;
           
           while (url) {
-            const tracksRes = await fetch(url, {
+            const tracksRes: Response = await fetch(url, {
               headers: {
                 Authorization: `Bearer ${token}`
               }
             });
-            const tracksData = await tracksRes.json();
+            const tracksData: any = await tracksRes.json();
             if (!totalTarget && typeof tracksData.total === 'number') {
               totalTarget = tracksData.total;
             }
@@ -308,14 +311,17 @@
             if (tracksData.items) {
               allTracks.push(...tracksData.items);
               trackCount += tracksData.items.length;
+              const total = totalTarget || trackCount;
               processingProgress = { 
-                current: trackCount, 
-                total: totalTarget || trackCount, 
-                stage: `Fetching tracks (${trackCount}/${totalTarget || trackCount})...` 
+                current: Math.min(trackCount, total), 
+                total, 
+                stage: `Fetching tracks (${Math.min(trackCount, total)}/${total})...` 
               };
             }
-            url = tracksData.next ? toApi(tracksData.next) : '';
+            url = tracksData.next ? toApi(tracksData.next) : null;
           }
+          const finalTotal = totalTarget || trackCount;
+          processingProgress = { current: Math.min(trackCount, finalTotal), total: finalTotal, stage: 'Tracks fetched.' };
         }
 
         // Cache the fetched tracks
