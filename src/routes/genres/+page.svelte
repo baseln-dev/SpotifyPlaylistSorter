@@ -2,14 +2,35 @@
   let isLoading = false;
   // Get genres from localStorage, set by playlists page
   let genres: string[] = [];
+  let searchQuery: string = '';
+  let filteredGenres: string[] = [];
+  
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('playlist_genres');
     if (stored) {
       genres = JSON.parse(stored);
+      filteredGenres = genres;
     }
   }
   let selectedGenres: string[] = [];
   let playlistMode = 'single'; // 'single' or 'multiple'
+
+  function filterGenres(query: string) {
+    if (!query.trim()) {
+      filteredGenres = genres;
+    } else {
+      const lowerQuery = query.toLowerCase();
+      filteredGenres = genres.filter(genre =>
+        genre.toLowerCase().includes(lowerQuery)
+      );
+    }
+  }
+
+  function handleSearchInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    searchQuery = target.value;
+    filterGenres(searchQuery);
+  }
 
   function toggleGenre(genre: string) {
     if (selectedGenres.includes(genre)) {
@@ -325,6 +346,62 @@
     margin-right: 0.5rem;
     accent-color: #1DB954;
   }
+
+  .search-container {
+    position: relative;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 1rem;
+    background: #191414;
+    border: 2px solid #333;
+    border-radius: 20px;
+    color: #fff;
+    font-size: 0.95rem;
+    transition: border 0.2s;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #1DB954;
+  }
+
+  .search-input::placeholder {
+    color: #666;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 1rem;
+    color: #b3b3b3;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+    background: none;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  .search-clear:hover {
+    color: #fff;
+  }
+
+  .search-clear:focus {
+    outline: none;
+    color: #1DB954;
+  }
+
+  .no-results {
+    text-align: center;
+    color: #b3b3b3;
+    padding: 2rem;
+    font-style: italic;
+  }
 </style>
 
 <div class="genres-container">
@@ -339,8 +416,30 @@
     </div>
   {/if}
   <h1>Select Genres</h1>
+  <div class="search-container">
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Search genres..."
+      value={searchQuery}
+      on:input={handleSearchInput}
+    />
+    {#if searchQuery}
+      <button
+        type="button"
+        class="search-clear"
+        on:click={() => { searchQuery = ''; filteredGenres = genres; }}
+        aria-label="Clear search"
+      >
+        ✕
+      </button>
+    {/if}
+  </div>
+  {#if filteredGenres.length === 0}
+    <div class="no-results">No genres match "{searchQuery}"</div>
+  {/if}
   <div class="genres-grid">
-    {#each genres as genre}
+    {#each filteredGenres as genre}
       <button
         class="genre-btn {selectedGenres.includes(genre) ? 'selected' : ''}"
         on:click={() => toggleGenre(genre)}

@@ -6,6 +6,15 @@
     image: string;
     isLiked?: boolean;
   }
+
+  interface CachedTrackItem {
+    track?: {
+      uri?: string;
+      artists?: { id?: string }[];
+    };
+  }
+
+  const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
   
   let playlists: Playlist[] = [];
   let loading = true;
@@ -225,66 +234,98 @@
     
     const token = localStorage.getItem('spotify_access_token');
     try {
-      let allTracks = [];
-      
-      // Fetch tracks
-      processingProgress.stage = 'Fetching tracks...';
-      
-      if (playlist.isLiked) {
-        localStorage.setItem('selected_playlist_id', 'liked-songs');
-        let url = 'https://api.spotify.com/v1/me/tracks?limit=50';
-        let trackCount = 0;
-        
-        while (url) {
-          const likedTracksRes = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          });
-          const tracksData = await likedTracksRes.json();
-          
-          if (tracksData.items) {
-            allTracks.push(...tracksData.items);
-            trackCount += tracksData.items.length;
-            processingProgress = { 
-              current: trackCount, 
-              total: playlist.tracks, 
-              stage: `Fetching tracks (${trackCount}/${playlist.tracks})...` 
+      let allTracks: CachedTrackItem[] = [];
+      const cacheKey = `playlist_cache_${playlist.id}`;
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw) as { updatedAt: number; trackCount: number; items: CachedTrackItem[] };
+          const fresh = Date.now() - cached.updatedAt < CACHE_TTL_MS;
+          const countMatches = !playlist.tracks || cached.trackCount === playlist.tracks;
+          if (fresh && countMatches && Array.isArray(cached.items)) {
+            allTracks = cached.items;
+            processingProgress = {
+              current: cached.items.length,
+              total: playlist.tracks || cached.items.length,
+              stage: `Using cached tracks (${cached.items.length}/${playlist.tracks || cached.items.length})...`
             };
           }
-          
-          url = tracksData.next;
+        } catch (e) {
+          console.warn('Failed to parse cache', e);
         }
-      } else {
-        localStorage.setItem('selected_playlist_id', playlist.id);
-        let url = `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=50`;
-        let trackCount = 0;
-        
-        while (url) {
-          const tracksRes = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${token}`
+      }
+
+      // Fetch tracks if no fresh cache
+      if (allTracks.length === 0) {
+        processingProgress.stage = 'Fetching tracks...';
+        if (playlist.isLiked) {
+          localStorage.setItem('selected_playlist_id', 'liked-songs');
+          let url = 'https://api.spotify.com/v1/me/tracks?limit=50&fields=items(track(uri,artists(id))),next,total';
+          let trackCount = 0;
+          
+          while (url) {
+            const likedTracksRes = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
+            const tracksData = await likedTracksRes.json();
+            
+            if (tracksData.items) {
+              allTracks.push(...tracksData.items);
+              trackCount += tracksData.items.length;
+              processingProgress = { 
+                current: trackCount, 
+                total: playlist.tracks || trackCount, 
+                stage: `Fetching tracks (${trackCount}/${playlist.tracks || trackCount})...` 
+              };
             }
-          });
-          const tracksData = await tracksRes.json();
-          
-          if (tracksData.items) {
-            allTracks.push(...tracksData.items);
-            trackCount += tracksData.items.length;
-            processingProgress = { 
-              current: trackCount, 
-              total: playlist.tracks, 
-              stage: `Fetching tracks (${trackCount}/${playlist.tracks})...` 
-            };
+            
+            url = tracksData.next;
           }
+        } else {
+          localStorage.setItem('selected_playlist_id', playlist.id);
+          let url = `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=50&fields=items(track(uri,artists(id))),next,total`;
+          let trackCount = 0;
           
-          url = tracksData.next;
+          while (url) {
+            const tracksRes = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
+            const tracksData = await tracksRes.json();
+            
+            if (tracksData.items) {
+              allTracks.push(...tracksData.items);
+              trackCount += tracksData.items.length;
+              processingProgress = { 
+                current: trackCount, 
+                total: playlist.tracks || trackCount, 
+                stage: `Fetching tracks (${trackCount}/${playlist.tracks || trackCount})...` 
+              };
+            }
+            
+            url = tracksData.next;
+          }
+        }
+
+        // Cache the fetched tracks
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            updatedAt: Date.now(),
+            trackCount: playlist.tracks,
+            items: allTracks
+          }));
+        } catch (e) {
+          console.warn('Failed to cache tracks', e);
         }
       }
       
       // Extract artist IDs
       processingProgress.stage = 'Analyzing artists...';
       const artistIds: string[] = [];
+      const artistCache: Record<string, string[]> = {};
       if (!Array.isArray(allTracks)) {
         error = 'Error: Could not fetch tracks for this playlist.';
         console.error('allTracks:', allTracks);
@@ -295,7 +336,7 @@
       allTracks.forEach((item: any) => {
         if (item.track && item.track.artists) {
           item.track.artists.forEach((artist: any) => {
-            if (!artistIds.includes(artist.id)) {
+            if (artist && artist.id && !artistIds.includes(artist.id)) {
               artistIds.push(artist.id);
             }
           });
@@ -316,20 +357,32 @@
           stage: `Fetching genres (${batchNumber}/${totalBatches} batches)...` 
         };
         
-        const idsChunk = artistIds.slice(i, i + 50).join(',');
-        const artistsRes = await fetch(`https://api.spotify.com/v1/artists?ids=${idsChunk}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        const artistsData = await artistsRes.json();
-        if (artistsData.artists) {
-          artistsData.artists.forEach((artist: any) => {
-            if (artist.genres) {
-              artist.genres.forEach((genre: string) => genresSet.add(genre));
+        const batchIds = artistIds.slice(i, i + 50);
+
+        // Use cache to avoid re-fetching same artist IDs (defensive, though artistIds is unique)
+        const idsToFetch = batchIds.filter(id => !artistCache[id]);
+
+        if (idsToFetch.length > 0) {
+          const idsChunk = idsToFetch.join(',');
+          const artistsRes = await fetch(`https://api.spotify.com/v1/artists?ids=${idsChunk}`, {
+            headers: {
+              Authorization: `Bearer ${token}`
             }
           });
+          const artistsData = await artistsRes.json();
+          if (artistsData.artists) {
+            artistsData.artists.forEach((artist: any) => {
+              artistCache[artist.id] = artist.genres || [];
+            });
+          }
         }
+
+        batchIds.forEach(id => {
+          const genres = artistCache[id];
+          if (genres) {
+            genres.forEach((genre: string) => genresSet.add(genre));
+          }
+        });
       }
       
       processingProgress.stage = 'Processing complete!';
@@ -363,6 +416,21 @@
       {/if}
     </div>
   </div>
+  {#if processingPlaylist}
+    <div class="global-progress">
+      <div class="global-progress__text">{processingProgress.stage}</div>
+      {#if processingProgress.total > 0}
+        <div class="global-progress__bar">
+          <div class="global-progress__fill" style={`width: ${(processingProgress.current / processingProgress.total) * 100}%`}></div>
+        </div>
+        <div class="global-progress__numbers">{processingProgress.current}/{processingProgress.total}</div>
+      {:else}
+        <div class="global-progress__bar global-progress__bar--indeterminate">
+          <div class="global-progress__fill global-progress__fill--indeterminate"></div>
+        </div>
+      {/if}
+    </div>
+  {/if}
   {#if loading}
     <div style="text-align:center; margin:2rem;">
       <div class="loading-wheel" style="border:8px solid #191414; border-top:8px solid #1DB954; border-radius:50%; width:80px; height:80px; animation:spin 1s linear infinite; margin:auto;"></div>
@@ -482,6 +550,54 @@
     transition: background 0.2s;
   }
   .delete-selected-btn:hover {
+  
+  /* Global processing bar */
+  :global(.global-progress) {
+    background: #0f0f0f;
+    border: 1px solid rgba(29,185,84,0.4);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  :global(.global-progress__text) {
+    color: #1DB954;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    font-size: 0.95rem;
+  }
+  :global(.global-progress__bar) {
+    position: relative;
+    height: 8px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  :global(.global-progress__fill) {
+    height: 100%;
+    background: linear-gradient(90deg, #1DB954, #1ed760);
+    width: 0%;
+    transition: width 0.25s ease;
+  }
+  :global(.global-progress__numbers) {
+    color: #b3b3b3;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    text-align: right;
+  }
+  :global(.global-progress__bar--indeterminate) {
+    overflow: hidden;
+  }
+  :global(.global-progress__fill--indeterminate) {
+    position: absolute;
+    width: 40%;
+    animation: indeterminate 1.1s infinite;
+  }
+  @keyframes indeterminate {
+    0% { left: -40%; }
+    50% { left: 60%; }
+    100% { left: 100%; }
+  }
     background: #a93226;
   }
   .playlists-grid {

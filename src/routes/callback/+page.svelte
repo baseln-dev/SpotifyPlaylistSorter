@@ -5,17 +5,11 @@
 
   const clientId = '0e612a7fd5544773bb7f69ba48861721';
   
-  // Detect environment and set appropriate redirect URI
+  // Local-only redirect URI for dev/testing (force 127.0.0.1)
   const getRedirectUri = () => {
-    if (typeof window === 'undefined') return 'https://nullvoyager47.github.io/PlaylistSorter/callback';
-    if (window.location.hostname === 'localhost') {
-      return 'http://localhost:5173/callback';
-    } else if (window.location.hostname.includes('github.io')) {
-      return 'https://nullvoyager47.github.io/PlaylistSorter/callback';
-    } else {
-      // Fallback to Netlify (in case you want to keep it as backup)
-      return 'https://spotifysorter.netlify.app/callback';
-    }
+    if (typeof window === 'undefined') return 'http://127.0.0.1:5173/callback';
+    const origin = window.location.origin.replace('localhost', '127.0.0.1');
+    return `${origin}/callback`;
   };
 
   async function exchangeCodeForToken(code: string) {
@@ -78,6 +72,13 @@
   }
 
   onMount(() => {
+    if (window.location.hostname === 'localhost') {
+      const url = new URL(window.location.href);
+      url.hostname = '127.0.0.1';
+      window.location.replace(url.toString());
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const error = params.get('error');

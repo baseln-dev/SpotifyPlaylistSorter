@@ -1,11 +1,44 @@
 <!doctype html>
 <html lang="en">
 	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		%sveltekit.head%
+			<meta charset="utf-8" />
+			<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<style>
+				body {
+					background: #191414;
+					color: #fff;
+					font-family: Arial, sans-serif;
+					min-height: 100vh;
+					margin: 0;
+				}
+				a {
+					color: #1DB954;
+					text-decoration: none;
+					transition: color 0.2s;
+				}
+				a:hover {
+					color: #1ed760;
+				}
+				button, .spotify-btn {
+					background: #1DB954;
+					color: #fff;
+					border: none;
+					border-radius: 4px;
+					font-size: 1rem;
+					cursor: pointer;
+					font-weight: 600;
+					letter-spacing: 1px;
+					transition: background 0.2s;
+					padding: 0.75rem 1.5rem;
+				}
+				button:hover, .spotify-btn:hover {
+					background: #1ed760;
+				}
+			</style>
+			%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
-		<div style="display: contents">%sveltekit.body%</div>
+		<div>%sveltekit.body%</div>
 	</body>
 </html>
