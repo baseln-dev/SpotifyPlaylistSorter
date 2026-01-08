@@ -2,11 +2,23 @@
 	import { onMount } from 'svelte';
 
 	const clientId = '0e612a7fd5544773bb7f69ba48861721';
-	// Local-only redirect URI for dev/testing (force 127.0.0.1)
+	
+	// Fixed redirect URIs - add both to your Spotify app settings
 	const getRedirectUri = () => {
 		if (typeof window === 'undefined') return 'http://127.0.0.1:5173/callback';
-		const origin = window.location.origin.replace('localhost', '127.0.0.1');
-		return `${origin}/callback`;
+		
+		// Local development
+		if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+			return 'http://127.0.0.1:5173/callback';
+		}
+		
+		// GitHub Pages production - update 'yourusername' with your GitHub username
+		if (window.location.hostname.endsWith('.github.io')) {
+			return `https://${window.location.hostname}/PlaylistSorter/callback`;
+		}
+		
+		// Fallback (shouldn't be used)
+		return 'http://127.0.0.1:5173/callback';
 	};
 
 	// Canonicalize dev host to 127.0.0.1 so PKCE storage and redirect origins match
@@ -57,6 +69,13 @@
 		
 		// Build authorization URL
 		const redirectUri = getRedirectUri();
+		console.log('Using redirect URI:', redirectUri);
+		console.log('Make sure this EXACT URI is added in your Spotify app settings:');
+		console.log('  1. Go to https://developer.spotify.com/dashboard');
+		console.log('  2. Click your app');
+		console.log('  3. Edit Settings > Redirect URIs');
+		console.log('  4. Add:', redirectUri);
+		
 		const authUrl =
 			`https://accounts.spotify.com/authorize?` +
 			`client_id=${clientId}` +

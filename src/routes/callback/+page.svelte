@@ -5,11 +5,22 @@
 
   const clientId = '0e612a7fd5544773bb7f69ba48861721';
   
-  // Local-only redirect URI for dev/testing (force 127.0.0.1)
+  // Fixed redirect URIs - must match login page
   const getRedirectUri = () => {
     if (typeof window === 'undefined') return 'http://127.0.0.1:5173/callback';
-    const origin = window.location.origin.replace('localhost', '127.0.0.1');
-    return `${origin}/callback`;
+    
+    // Local development
+    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+      return 'http://127.0.0.1:5173/callback';
+    }
+    
+    // GitHub Pages production
+    if (window.location.hostname.endsWith('.github.io')) {
+      return `https://${window.location.hostname}/PlaylistSorter/callback`;
+    }
+    
+    // Fallback
+    return 'http://127.0.0.1:5173/callback';
   };
 
   async function exchangeCodeForToken(code: string) {

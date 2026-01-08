@@ -42,13 +42,14 @@
 
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
+  import { toApi } from '$lib/api';
 
   async function handleContinue() {
   if (selectedGenres.length === 0) return;
   isLoading = true;
     const token = localStorage.getItem('spotify_access_token');
     const playlistId = localStorage.getItem('selected_playlist_id');
-    const userRes = await fetch('https://api.spotify.com/v1/me', {
+    const userRes = await fetch(toApi('me'), {
       headers: { Authorization: `Bearer ${token}` }
     });
     const userData = await userRes.json();
@@ -56,7 +57,7 @@
     if (playlistId === 'liked-songs') {
       // Fetch ALL liked songs (paginated)
       let allItems = [];
-      let nextUrl = 'https://api.spotify.com/v1/me/tracks?limit=50';
+      let nextUrl = toApi('me/tracks?limit=50');
       while (nextUrl) {
         const tracksRes = await fetch(nextUrl, {
           headers: { Authorization: `Bearer ${token}` }
@@ -65,11 +66,11 @@
         if (Array.isArray(pageData.items)) {
           allItems.push(...pageData.items);
         }
-        nextUrl = pageData.next;
+        nextUrl = pageData.next ? toApi(pageData.next) : '';
       }
       tracksData = { items: allItems };
     } else {
-      const tracksRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+      const tracksRes = await fetch(toApi(`playlists/${playlistId}/tracks`), {
         headers: { Authorization: `Bearer ${token}` }
       });
       tracksData = await tracksRes.json();
@@ -103,7 +104,7 @@
       let artistGenres: Record<string, string[]> = {};
       for (let i = 0; i < allArtistIds.length; i += 50) {
         const batchIds = allArtistIds.slice(i, i + 50);
-        const artistsRes = await fetch(`https://api.spotify.com/v1/artists?ids=${batchIds.join(',')}`, {
+        const artistsRes = await fetch(toApi(`artists?ids=${batchIds.join(',')}`), {
           headers: { Authorization: `Bearer ${token}` }
         });
         const artistsData = await artistsRes.json();
@@ -138,7 +139,7 @@
         }
         // Remove duplicates
         allUris = Array.from(new Set(allUris));
-        const createRes = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+        const createRes = await fetch(toApi(`users/${userData.id}/playlists`), {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -153,7 +154,7 @@
         const newPlaylist = await createRes.json();
         for (let i = 0; i < allUris.length; i += 100) {
           const batch = allUris.slice(i, i + 100);
-          await fetch(`https://api.spotify.com/v1/playlists/${newPlaylist.id}/tracks`, {
+          await fetch(toApi(`playlists/${newPlaylist.id}/tracks`), {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -169,7 +170,7 @@
         for (const genre of selectedGenres) {
           const uris = await getTrackUrisForGenre(genre);
           if (uris.length === 0) continue;
-          const createRes = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+          const createRes = await fetch(toApi(`users/${userData.id}/playlists`), {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
@@ -184,7 +185,7 @@
           const newPlaylist = await createRes.json();
           for (let i = 0; i < uris.length; i += 100) {
             const batch = uris.slice(i, i + 100);
-            await fetch(`https://api.spotify.com/v1/playlists/${newPlaylist.id}/tracks`, {
+            await fetch(toApi(`playlists/${newPlaylist.id}/tracks`), {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${token}`,

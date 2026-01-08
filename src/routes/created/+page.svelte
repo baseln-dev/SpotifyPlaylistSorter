@@ -25,6 +25,7 @@
 
 <script lang="ts">
   import { base } from '$app/paths';
+  import { toApi } from '$lib/api';
   // Load created playlists from localStorage and fetch details from Spotify
   interface Playlist {
     id: string;
@@ -48,7 +49,7 @@
       let results = [];
       for (const playlist of playlists) {
         try {
-          const res = await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}`, {
+          const res = await fetch(toApi(`playlists/${playlist.id}`), {
             headers: { Authorization: `Bearer ${token}` }
           });
           const data = await res.json();
